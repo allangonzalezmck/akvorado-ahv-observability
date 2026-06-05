@@ -30,38 +30,7 @@ Built on Akvorado, the data plane scales to many datacenters and hundreds of clu
 
 ## Architecture at a Glance
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Nutanix AHV Cluster                       │
-│                                                              │
-│   ┌──────────┐   ┌──────────┐   ┌──────────┐                 │
-│   │  AHV-01  │   │  AHV-02  │   │  AHV-NN  │   (N hosts)     │
-│   │          │   │          │   │          │                 │
-│   │   OVS    │   │   OVS    │   │   OVS    │                 │
-│   │   sFlow  │   │   sFlow  │   │   sFlow  │                 │
-│   └────┬─────┘   └────┬─────┘   └────┬─────┘                 │
-│        │              │              │                       │
-│        └──────────────┴──────────────┘                       │
-│                       │ sFlow datagrams (UDP/6343)           │
-└───────────────────────┼──────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│                Observability VM (single host)                │
-│                                                              │
-│   ┌────────────┐    ┌─────────┐    ┌────────────┐            │
-│   │ Akvorado   │───>│  Kafka  │───>│ Akvorado   │            │
-│   │   Inlet    │    │         │    │   Outlet   │            │
-│   │ (decoder)  │    │         │    │ (enricher) │            │
-│   └────────────┘    └─────────┘    └─────┬──────┘            │
-│                                          │                   │
-│                                          ▼                   │
-│   ┌────────────┐                  ┌────────────┐             │
-│   │  Console   │<─────────────────│ ClickHouse │             │
-│   │   (UI)     │                  │  (storage) │             │
-│   └────────────┘                  └────────────┘             │
-└─────────────────────────────────────────────────────────────┘
-```
+![Architecture diagram showing sFlow flowing from Nutanix AHV hosts through Akvorado Inlet, Kafka, Outlet, ClickHouse, and Console to operators](docs/images/architecture.svg)
 
 Flows from every AHV host's OVS instance are sampled, captured (with full packet headers), shipped via Kafka, enriched with metadata (cluster name, DR pair, site, environment, tenant), stored in ClickHouse, and visualized through Akvorado's web UI.
 
