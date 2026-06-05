@@ -1,0 +1,197 @@
+---
+# ============================================================================
+# Akvorado Configuration — Master File
+# ============================================================================
+#
+# This file configures the orchestrator, which serves config to the inlet,
+# outlet, and console services.
+#
+# Documentation:
+#   https://demo.akvorado.net/docs
+#   ../docs/04-akvorado-configuration.md (in this repo)
+#
+# IMPORTANT: Replace all <PLACEHOLDER> values with your actual settings
+# before deploying. Validate the file with:
+#
+#   docker compose run --rm akvorado-orchestrator \
+#     orchestrator /etc/akvorado/akvorado.yaml --check
+#
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# Kafka — message buffer between inlet and outlet
+# ----------------------------------------------------------------------------
+kafka:
+  topic: flows
+  version: 3.3.1
+  brokers:
+    - kafka:9092
+  topic-configuration:
+    num-partitions: 8
+    replication-factor: 1
+    config-entries:
+      # 24-hour retention provides a buffer if ClickHouse is down or slow.
+      segment.bytes: 1073741824
+      retention.ms: 86400000
+      cleanup.policy: delete
+      compression.type: producer
+
+
+# ----------------------------------------------------------------------------
+# GeoIP — ASN and country lookup (optional, for external traffic enrichment)
+# ----------------------------------------------------------------------------
+geoip:
+  optional: true
+  # Default: IPinfo databases bundled with Akvorado
+  asn-database:
+    - /usr/share/GeoIP/asn.mmdb
+  geo-database:
+    - /usr/share/GeoIP/country.mmdb
+  # To use MaxMind GeoIP2 instead, uncomment these (and configure docker-compose-maxmind.yml):
+  # asn-database:
+  #   - /usr/share/GeoIP/GeoLite2-ASN.mmdb
+  # geo-database:
+  #   - /usr/share/GeoIP/GeoLite2-Country.mmdb
+
+
+# ----------------------------------------------------------------------------
+# ClickHouse — flow storage and src/dst network labeling
+# ----------------------------------------------------------------------------
+clickhouse:
+  orchestrator-url: http://akvorado-orchestrator:8080
+  kafka:
+    consumers: 4
+  servers:
+    - clickhouse:9000
+  prometheus-endpoint: /metrics
+
+  # ASN labeling — optional, names for private ASNs
+  asns:
+    64501: ACME Corporation
+
+  # Networks block — OPTIONAL src/dst IP labeling.
+  #
+  # This block is PURELY COSMETIC. Flows with unmatched src/dst IPs are NOT
+  # dropped — they just don't get friendly names in the UI.
+  #
+  # For production, integrate with your IPAM (Infoblox, NetBox) rather than
+  # maintaining this manually for hundreds of subnets.
+  #
+  # The examples below use RFC 5737 documentation-only ranges as placeholders.
+  # Remove or replace them with your own subnets.
+  networks:
+    192.0.2.0/24:
+      name: ipv4-example-customers
+      role: customers
+    198.51.100.0/24:
+      name: ipv4-example-servers
+      role: servers
+    2001:db8::/32:
+      name: ipv6-example
+      role: example
+
+  network-sources: []
+    # Future: source network labels from an external feed (AWS IP ranges, GCP, IPAM)
+    # Example for AWS:
+    # amazon:
+    #   url: https://ip-ranges.amazonaws.com/ip-ranges.json
+    #   interval: 6h
+    #   transform: |
+    #     (.prefixes + .ipv6_prefixes)[] |
+    #     { prefix: (.ip_prefix // .ipv6_prefix), tenant: "amazon", region: .region, role: .service|ascii_downcase }
+
+
+# ----------------------------------------------------------------------------
+# Inlet — flow protocol listeners (included from separate file for clarity)
+# ----------------------------------------------------------------------------
+inlet: !include "inlet.yaml"
+
+
+# ----------------------------------------------------------------------------
+# Outlet — metadata enrichment for received flows
+# ----------------------------------------------------------------------------
+#
+# CRITICAL: The exporters block here can cause flows to be DROPPED if an
+# incoming exporter IP does not match any CIDR. Always include the catchall
+# 0.0.0.0/0 and ::/0 entries at the end.
+#
+# Valid fields per exporter entry:
+#   name, group, role, site, region, tenant, default, ifaces
+#
+# Note: a top-level `description` field is NOT valid. Use YAML comments instead.
+#
+# See ../docs/05-naming-convention.md for the schema rationale.
+#
+# ============================================================================
+outlet:
+  metadata:
+    providers:
+      - type: static
+        exporters:
+
+          # ==========================================
+          # DR Pair 01 — LAB clusters
+          # <SITE-A> CL01 <-> <SITE-B> CL01
+          # ==========================================
+
+          # SITE-A LAB Cluster 1 | DR-paired with SITE-B CL01
+          "192.0.2.0/24":            # ← REPLACE with your actual AHV management subnet
+            name: "site-a-cl01-ahv"
+            group: "site-a-lab"
+            role: "lab"
+            site: "site-a"
+            region: "dr-pair-01"
+            tenant: "infra"
+            default:
+              name: "unknown"
+              description: "unknown"
+              speed: 10000
+
+          # SITE-B LAB Cluster 1 | DR-paired with SITE-A CL01
+          "198.51.100.0/24":         # ← REPLACE with your actual AHV management subnet
+            name: "site-b-cl01-ahv"
+            group: "site-b-lab"
+            role: "lab"
+            site: "site-b"
+            region: "dr-pair-01"
+            tenant: "infra"
+            default:
+              name: "unknown"
+              description: "unknown"
+              speed: 10000
+
+          # Add more DR pairs as you onboard additional clusters.
+          # See ../docs/05-naming-convention.md for the expansion pattern.
+
+
+          # ==========================================
+          # Catchall — DO NOT REMOVE
+          # ==========================================
+          # These entries prevent flows from unconfigured exporters from being
+          # silently dropped at the outlet's metadata enrichment stage.
+          # ==========================================
+
+          "0.0.0.0/0":
+            name: "unclassified-exporter"
+            group: "unclassified"
+            role: "unknown"
+            site: "unknown"
+            region: "unknown"
+            tenant: "unknown"
+            default:
+              name: "unknown"
+              description: "unknown"
+              speed: 10000
+
+          "::/0":
+            name: "unclassified-exporter"
+            group: "unclassified"
+            role: "unknown"
+            site: "unknown"
+            region: "unknown"
+            tenant: "unknown"
+            default:
+              name: "unknown"
+              description: "unknown"
+              speed: 10000

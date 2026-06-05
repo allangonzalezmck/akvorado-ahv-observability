@@ -1,0 +1,42 @@
+# Local environment overrides
+.env
+.env.local
+*.local
+
+# Editor / IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Sensitive — never commit real configuration
+config/akvorado.yaml
+config/inlet.yaml
+docker/docker-compose.override.yml
+docker/.env
+
+# Logs and runtime
+*.log
+*.pid
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Python (for any helper scripts)
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Terraform (if you add infra-as-code later)
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Ansible (if you add automation later)
+*.retry

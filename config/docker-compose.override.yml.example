@@ -1,0 +1,62 @@
+# ============================================================================
+# Docker Compose Override for Akvorado
+# ============================================================================
+#
+# Place this file at: <akvorado-clone>/docker/docker-compose.override.yml
+#
+# It overrides the base docker-compose.yml shipped with Akvorado to:
+#   1. Expose flow listener ports on the host
+#   2. Bind ClickHouse and Kafka volumes to fast storage
+#
+# Adjust the volume `device:` paths to match your storage layout.
+#
+# Documentation: ../docs/04-akvorado-configuration.md
+# ============================================================================
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Akvorado inlet — UDP listener ports
+  # --------------------------------------------------------------------------
+  # NOTE on sFlow port mapping (6344:6343):
+  #   - Akvorado listens on UDP/6343 inside the container (default sFlow port)
+  #   - We map host port 6344 to this so AHV hosts send to <host-IP>:6344
+  #   - This leaves host port 6343 free for sFlow-RT or similar tools to
+  #     coexist on the same collector host. If you don't need that, you can
+  #     change this to "6343:6343/udp" to use the standard sFlow port directly.
+  # --------------------------------------------------------------------------
+  akvorado-inlet:
+    ports:
+      - "6344:6343/udp"       # sFlow (host 6344 → container 6343)
+      - "2055:2055/udp"       # NetFlow / NetFlow v9
+      - "4739:4739/udp"       # IPFIX
+
+  # --------------------------------------------------------------------------
+  # Akvorado console — web UI
+  # --------------------------------------------------------------------------
+  akvorado-console:
+    ports:
+      - "8080:8080"
+
+
+# ----------------------------------------------------------------------------
+# Volume bindings to fast storage
+# ----------------------------------------------------------------------------
+# Adjust the `device:` paths to match where you want ClickHouse and Kafka
+# to store their data. For production, use NVMe or SSD for both.
+# ----------------------------------------------------------------------------
+volumes:
+
+  akvorado-clickhouse:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /srv/fast/clickhouse      # ← ADJUST to your fast storage path
+
+  akvorado-kafka:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /srv/fast/kafka           # ← ADJUST to your fast storage path

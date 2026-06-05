@@ -1,0 +1,70 @@
+---
+# ============================================================================
+# Akvorado Inlet Configuration
+# ============================================================================
+#
+# Defines UDP listeners for incoming flow protocols. Each entry under
+# flow.inputs creates one listener.
+#
+# This file is included from akvorado.yaml via the !include directive.
+#
+# Documentation:
+#   ../docs/04-akvorado-configuration.md
+#
+# ============================================================================
+
+
+kafka:
+  brokers:
+    - kafka:9092
+
+
+flow:
+  inputs:
+
+    # ------------------------------------------------------------------------
+    # NetFlow / IPFIX listener (optional)
+    # ------------------------------------------------------------------------
+    #
+    # Comment this out entirely if you only want sFlow. Mixing both is
+    # supported but produces less consistent data for ML / anomaly detection.
+    # See ../docs/01-architecture.md for the rationale on choosing one or
+    # the other.
+    # ------------------------------------------------------------------------
+
+    - type: udp
+      decoder: netflow
+      listen: ":2055"
+      workers: 6
+      receive-buffer: 10485760
+
+
+    # ------------------------------------------------------------------------
+    # sFlow listener (recommended)
+    # ------------------------------------------------------------------------
+    #
+    # Listens on container port 6343. Host port 6344 is mapped to this in the
+    # docker-compose override — see docker-compose.override.yml.example.
+    #
+    # workers: number of decoder threads. 6 is appropriate for most lab and
+    #          small-production deployments. Scale up for high-throughput.
+    # receive-buffer: UDP socket receive buffer in bytes (10 MB default).
+    #                 Increase if you observe UDP receive errors in the
+    #                 inlet metrics under high traffic.
+    # ------------------------------------------------------------------------
+
+    - type: udp
+      decoder: sflow
+      listen: ":6343"
+      workers: 6
+      receive-buffer: 10485760
+
+
+    # ------------------------------------------------------------------------
+    # IPFIX listener (uncomment if you have IPFIX exporters)
+    # ------------------------------------------------------------------------
+    # - type: udp
+    #   decoder: ipfix
+    #   listen: ":4739"
+    #   workers: 6
+    #   receive-buffer: 10485760
